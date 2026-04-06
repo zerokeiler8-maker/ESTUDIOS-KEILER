@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Libro Técnico Pro - Sincronizado</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+
+<style>
+    body{ margin:0; font-family: system-ui, sans-serif; background:#0d1117; color:#eaeaea; }
+    #sync-status { position: fixed; bottom: 10px; right: 15px; font-size: 11px; color: #58a6ff; z-index: 1000; font-weight: bold; background: rgba(13,17,23,0.8); padding: 2px 8px; border-radius: 4px; }
+    .collapsed-sidebar .menu { width: 0; padding: 0; overflow: hidden; border-right: none; }
+    .collapsed-sidebar .menu > * { display: none; }
+    .tabs{ display:flex; background:#161b22; border-bottom:1px solid #30363d; position: sticky; top: 0; z-index: 100; align-items: center; }
+    .tab{ padding:12px 20px; cursor:pointer; color: #8b949e; transition: 0.2s; }
+    .tab.active{ background:#0d1117; border-bottom: 2px solid #58a6ff; color: #f0f6fc; }
+    .toggle-sidebar-btn { padding: 5px 12px; margin-left: auto; margin-right: 15px; cursor: pointer; background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; font-size: 0.8em; }
+    .layout{ display:flex; height:calc(100vh - 45px); }
+    .menu{ width:280px; background:#161b22; padding:20px; overflow-y:auto; border-right:1px solid #30363d; transition: all 0.3s; }
+    .search{ width:100%; padding:10px; margin-bottom:15px; background:#0d1117; border:1px solid #30363d; color:white; border-radius: 6px; outline: none; }
+    .main{ flex:1; padding:30px; overflow-y:auto; scroll-behavior: smooth; }
+    .editor-container { background: #161b22; border: 1px solid #30363d; border-radius: 8px; }
+    .toolbar-editor { background: #21262d; padding: 10px; border-bottom: 1px solid #30363d; display: flex; gap: 10px; align-items: center; }
+    .editor{ padding:20px; min-height:350px; outline: none; line-height: 1.6; font-size: 15px; }
+    .folder { margin: 10px 0; border: 1px solid #30363d; border-radius: 8px; background: #161b22; padding: 10px; }
+    .folder-header { display: flex; align-items: center; gap: 10px; }
+    .folder-title { font-size: 1.2em; color: #58a6ff; font-weight: bold; flex: 1; }
+    .folder-content { margin-left: 20px; border-left: 1px dashed #30363d; padding-left: 10px; margin-top: 10px; }
+    .folder-content.collapsed { display: none; }
+    .capitulo{ margin-bottom:30px; border:1px solid #30363d; padding:25px; border-radius:12px; background: #0d1117; transition: 0.3s; }
+    .tituloCapitulo { font-size: 1.8em; color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 10px; margin-top: 0; }
+    pre { background:#010409 !important; padding:20px; border-radius:8px; border: 1px solid #30363d; border-left: 4px solid #58a6ff; margin: 1.5em 0; position: relative; }
+    pre::before { content: "CODE"; position: absolute; top: 0; right: 15px; font-size: 10px; color: #444; font-weight: bold; }
+    code { font-family: 'Fira Code', 'Consolas', monospace !important; font-size: 14px !important; }
+    button{ padding:8px 15px; cursor:pointer; background: #21262d; color: #c9d1d9; border: 1px solid #30363d; border-radius: 6px; }
+    button:hover { background: #30363d; }
+    button.primary { background: #238636; color: white; border: none; }
+    .oculto{ display:none; }
+</style>
+</head>
+<body>
+
+<div id="sync-status">Conectado</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="mostrarEditor(this)">✏️ Editor de Entrada</div>
+  <div class="tab" id="btnVistaLibro" onclick="mostrarLibro(this)">📚 Vista del Libro</div>
+  <button class="toggle-sidebar-btn" onclick="toggleSidebar()">👁️ Ocultar/Mostrar Menú</button>
+</div>
+
+<div id="editorPanel" class="main">
+  <div class="editor-container">
+    <div class="toolbar-editor">
+      <button class="primary" onclick="insertarBloqueVacio()">💻 Nuevo Bloque de Código</button>
+      <select id="lenguaje">
+          <option value="python">Python</option>
+          <option value="javascript">JavaScript</option>
+          <option value="bash">Terminal/Bash</option>
+      </select>
+    </div>
+    <div contenteditable="true" id="entrada" class="editor" spellcheck="false"><p></p></div>
+  </div>
+  <div style="margin-top: 15px; display: flex; gap: 10px; align-items: center;">
+    <button class="primary" onclick="agregarOAnexar()">🚀 Enviar al Libro</button>
+    <label>Destino:</label>
+    <select id="selectDestino"></select>
+    <button onclick="guardarTodo()">💾 Guardar Todo</button>
+  </div>
+</div>
+
+<div id="libroPanel" class="layout oculto">
+  <div class="menu">
+    <h2>Índice</h2>
+    <button onclick="crearCarpeta('libro')" style="width:100%; margin-bottom:10px;">📁 Nueva Carpeta</button>
+    <button onclick="guardarTodo()" style="width:100%; margin-bottom:10px; background:#238636; color:white;">💾 Guardar Cambios</button>
+    <button onclick="exportarBackup()" style="width:100%; margin-bottom:10px; background:#30363d;">📤 Descargar Backup (.txt)</button>
+    <button onclick="document.getElementById('importInput').click()" style="width:100%; margin-bottom:10px; background:#30363d;">📥 Importar Backup</button>
+    <input type="file" id="importInput" class="oculto" accept=".txt" onchange="importarBackup(event)">
+    <input class="search" placeholder="Buscar..." id="buscar" oninput="buscar()" />
+    <div id="indice"></div>
+    <hr style="border:0; border-top:1px solid #333; margin:20px 0;">
+    <button onclick="descargarLibro()" style="width:100%">📂 Exportar HTML</button>
+  </div>
+  <div class="main" id="libro"></div>
+</div>
+
+<script>
+// CONFIGURACIÓN (Tus claves reales de tus capturas)
+const BIN_ID = "69d40aefaaba882197ce45f4"; 
+const API_KEY = "$2a$10$fkHuERxLJdga1blMipDho.3gCY77u7419.RmsH9pmTI0jSM3KOVNi";
+const API_URL = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+
+const libro = document.getElementById("libro");
+const entrada = document.getElementById("entrada");
+
+// --- FUNCIONES DE NUBE REFORZADAS ---
+
+async function guardarEnCloud() {
+    const status = document.getElementById("sync-status");
+    status.innerText = "Sincronizando...";
+    
+    try {
+        const response = await fetch(API_URL, {
+            method: 'PUT',
+            headers: {
+                "Content-Type": "application/json",
+                "X-Master-Key": API_KEY,
+                "X-Bin-Private": "true"
+            },
+            body: JSON.stringify({ html: libro.innerHTML })
+        });
+
+        if (response.ok) {
+            status.innerText = "Sincronizado";
+        } else {
+            const errData = await response.json();
+            console.error("Error del servidor:", errData);
+            status.innerText = "Error (Ver Consola)";
+        }
+    } catch (e) {
+        status.innerText = "Error de red";
+        console.error("Fallo de conexión:", e);
+    }
+}
+
+async function cargarDeCloud() {
+    try {
+        const res = await fetch(`${API_URL}/latest?meta=false`, {
+            headers: { "X-Master-Key": API_KEY }
+        });
+        
+        if (!res.ok) return;
+
+        const data = await res.json();
+        // Ajuste para leer tanto 'data.html' como 'data.record.html'
+        const contenidoNube = data.html || (data.record ? data.record.html : null);
+
+        if(contenidoNube && contenidoNube !== libro.innerHTML) {
+            libro.innerHTML = contenidoNube;
+            actualizarSelect();
+            aplicarColor(libro);
+            generarIndice();
+        }
+    } catch (e) { 
+        console.warn("Reintentando conexión..."); 
+    }
+}
+
+// Sincronización automática cada 15 segundos
+setInterval(cargarDeCloud, 15000);
+
+// --- FUNCIONES DE INTERFAZ ---
+function toggleSidebar() { document.body.classList.toggle("collapsed-sidebar"); }
+function insertarBloqueVacio() {
+    const lang = document.getElementById("lenguaje").value;
+    entrada.focus();
+    const bloque = `<pre><code class="language-${lang}"># Código aquí...</code></pre><p><br></p>`;
+    document.execCommand('insertHTML', false, bloque);
+}
+function aplicarColor(el) {
+    el.querySelectorAll('pre code').forEach((block) => {
+        delete block.dataset.highlighted;
+        hljs.highlightElement(block);
+    });
+}
+function mostrarEditor(tab){
+    document.getElementById("editorPanel").classList.remove("oculto");
+    document.getElementById("libroPanel").classList.add("oculto");
+    activarTab(tab);
+}
+function mostrarLibro(tab){
+    document.getElementById("editorPanel").classList.add("oculto");
+    document.getElementById("libroPanel").classList.remove("oculto");
+    activarTab(tab);
+    generarIndice();
+    aplicarColor(libro);
+}
+function activarTab(tab){
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+    tab.classList.add("active");
+}
+function crearCarpeta(padreId) {
+    let nombre = prompt("Nombre:");
+    if(!nombre) return;
+    let container = padreId === 'libro' ? libro : document.getElementById(padreId).querySelector('.folder-content');
+    const id = "f-" + Date.now();
+    container.insertAdjacentHTML('beforeend', `<div class="folder" id="${id}"><div class="folder-header"><button onclick="toggleFolder('${id}')">👁️</button><span class="folder-title" contenteditable="true">${nombre}</span><button onclick="moverElemento('${id}', -1)">▲</button><button onclick="moverElemento('${id}', 1)">▼</button><button onclick="crearCarpeta('${id}')">➕📁</button><button onclick="eliminar('${id}')">🗑</button></div><div class="folder-content"></div></div>`);
+    actualizarSelect();
+    guardarEnCloud();
+}
+function toggleFolder(id) { document.getElementById(id).querySelector('.folder-content').classList.toggle('collapsed'); }
+function agregarOAnexar() {
+    const destinoId = document.getElementById("selectDestino").value;
+    if(!destinoId) return;
+    let nombre = prompt("Título:");
+    let target = destinoId === 'libro' ? libro : document.getElementById(destinoId).querySelector('.folder-content');
+    const cid = "c-" + Date.now();
+    target.insertAdjacentHTML('beforeend', `<div class="capitulo" id="${cid}"><h1 class="tituloCapitulo" contenteditable="true">${nombre || "Nuevo"}</h1><div class="contenidoCapitulo" contenteditable="true">${entrada.innerHTML}</div><div style="text-align:right"><button onclick="moverElemento('${cid}', -1)">▲</button><button onclick="moverElemento('${cid}', 1)">▼</button><button onclick="eliminar('${cid}')">🗑</button></div></div>`);
+    aplicarColor(target.lastElementChild);
+    entrada.innerHTML = "<p></p>";
+    guardarEnCloud();
+}
+function moverElemento(id, dir) {
+    const el = document.getElementById(id);
+    if(dir === -1 && el.previousElementSibling) el.parentNode.insertBefore(el, el.previousElementSibling);
+    else if(dir === 1 && el.nextElementSibling) el.parentNode.insertBefore(el.nextElementSibling, el);
+    guardarEnCloud();
+}
+function eliminar(id) { if(confirm("¿Eliminar?")) { document.getElementById(id).remove(); actualizarSelect(); guardarEnCloud(); } }
+function actualizarSelect() {
+    const s = document.getElementById("selectDestino");
+    s.innerHTML = '<option value="libro">Raíz</option>';
+    function recorrer(cont, pref = "") {
+        cont.querySelectorAll(":scope > .folder").forEach(f => {
+            const opt = document.createElement("option");
+            opt.value = f.id;
+            opt.innerText = pref + f.querySelector(".folder-title").innerText;
+            s.appendChild(opt);
+            recorrer(f.querySelector(".folder-content"), pref + "— ");
+        });
+    }
+    recorrer(libro);
+}
+function generarIndice(){
+    let ind = document.getElementById("indice");
+    ind.innerHTML = "";
+    document.querySelectorAll(".folder-title, .tituloCapitulo").forEach(t => {
+        let a = document.createElement("a");
+        a.innerText = t.innerText;
+        a.style = "display:block; margin:5px 0; color:#8b949e; cursor:pointer; font-size:0.9em;";
+        a.onclick = () => t.scrollIntoView({behavior: "smooth", block: "center"});
+        ind.appendChild(a);
+    });
+}
+function buscar() {
+    let f = document.getElementById("buscar").value.toLowerCase();
+    document.querySelectorAll(".capitulo").forEach(c => c.style.display = c.innerText.toLowerCase().includes(f) ? "block" : "none");
+}
+function guardarTodo(){ guardarEnCloud(); }
+function exportarBackup() { 
+    let blob = new Blob([libro.innerHTML], {type: "text/plain"});
+    let a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "backup.txt"; a.click();
+}
+function importarBackup(e) {
+    let reader = new FileReader();
+    reader.onload = (ev) => { libro.innerHTML = ev.target.result; actualizarSelect(); guardarEnCloud(); };
+    reader.readAsText(e.target.files[0]);
+}
+window.onload = () => { cargarDeCloud(); actualizarSelect(); };
+function descargarLibro(){
+    let h = `<html><head><meta charset="UTF-8"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css"><style>body{background:#0d1117;color:#eaeaea;padding:40px;max-width:800px;margin:auto;font-family:sans-serif} .capitulo{border:1px solid #30363d; padding:25px; border-radius:12px; margin-bottom:30px} pre{background:#010409!important;padding:16px;border-radius:8px;border:1px solid #30363d;border-left:4px solid #58a6ff}</style></head><body>${libro.innerHTML}</body></html>`;
+    let a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([h], {type: "text/html"})); a.download = "libro.html"; a.click();
+}
+</script>
+</body>
+</html>
